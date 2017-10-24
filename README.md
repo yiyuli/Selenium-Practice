@@ -1,4 +1,5 @@
 # Selenium-Practice
+Read in Raw mode
 
 Week 10.2 - 10.9
 Progess: Went through all of Selenium IDE and WebDriver tutorials and first three tutorials of Advanced WebDriver Stuff. Wrote both tutorial sample tests and personal practice tests which can be found on Selenium-Practice. Also i had a skim over all three projects, Wikia, Mozilla addon, and Jenkins. All three have plenty of Selenium tests code while Mozilla addon uses python in which the interface of Selenium looks a little different but generally I can understand.
