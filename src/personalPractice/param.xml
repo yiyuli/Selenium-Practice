@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="TestSuite" thread-count="1">
+	<test name="A">
+		<parameter name="string" value="MATH213" />
+		<classes>
+			<class name="personalPractice.ParameterizationTestNG">
+			</class>
+		</classes>
+	</test>
+	<test name="B">
+		<parameter name="string" value="PHYS412" />
+		<classes>
+			<class name="personalPractice.ParameterizationTestNG">
+			</class>
+		</classes>
+	</test>
+	<test name="C">
+		<parameter name="string" value="CHEM101" />
+		<classes>
+			<class name="personalPractice.ParameterizationTestNG">
+			</class>
+		</classes>
+	</test>
+</suite>
