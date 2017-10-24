@@ -7,9 +7,9 @@ Note: 1.Selenium Practice: https://github.com/yiyuli/Selenium-Practice
       2.tutorial website: https://www.guru99.com/selenium-tutorial.html
       3.running tests in another computer could be difficult for now. To run the Selenium IDE tests in SeleniumIDE-Tests directory, install SeleniumIDE and FireFox with Firebug and SeleniumIDE extensions. See https://www.guru99.com/install-selenuim-ide.html
       4.to run the WebDriver tests, I followed the tutorial to use Eclipse IDE and add WebDriver as libraries. See https://www.guru99.com/installing-selenium-webdriver.html
-      5.to run RegistrationTest in personalPractice Package, the website has to be logged in before testing because it will direct to real registeration	page before user can play with its practice registration page.
+      5.to run RegistrationTest in personalPractice Package, the website has to be logged in before testing because it will direct to real registeration page before user can play with its practice registration page.
       6.in the System.setProperty method in every test, the second argument which is the chrome driver local address has to be change to where you downloaded the chrome driver
-	    7.to run testNG test, install testNG plugin in Eclipse marketplace
+      7.to run testNG test, install testNG plugin in Eclipse marketplace
 
 Plan: 1.use Maven to configure dependencies so that dependency files like WebDriver can be downloaded automatically
       2.improve RegistrationTest to automatically sign in and run the test so that beforehand login is not needed
@@ -23,8 +23,8 @@ Note: 1.in the first week, I didn't initialize git in original Selenium-Practice
       3.tutorial website: https://www.guru99.com/selenium-tutorial.html
       4.to run the Selenium IDE tests in SeleniumIDE-Tests directory, install SeleniumIDE and FireFox with Firebug and SeleniumIDE extensions. See https://www.guru99.com/install-selenuim-ide.html
       5.to run the WebDriver tests, I followed the tutorial to use Eclipse IDE and add WebDriver as libraries. See https://www.guru99.com/installing-selenium-webdriver.html
-      6.to run RegistrationTest in personalPractice Package, the website has to be logged in before testing because it will direct to real registeration	page before user can play with its practice registration page.
+      6.to run RegistrationTest in personalPractice Package, the website has to be logged in before testing because it will direct to real registeration page before user can play with its practice registration page.
       7.in the System.setProperty method in every test, the second argument which is the chrome driver local address has to be changed to where you downloaded the chrome driver
-	    8.to run testNG test, install testNG plugin in Eclipse marketplace
+      8.to run testNG test, install testNG plugin in Eclipse marketplace
       
 Plan: Look into code of found open source project Selenium tests, run these tests, collect the result and analyze it. 
