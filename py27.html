@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <style>body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 12px;
+	min-width: 1200px;
+	color: #999;
+}
+h2 {
+	font-size: 16px;
+	color: black;
+}
+
+p {
+    color: black;
+}
+
+a {
+	color: #999;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+
+#environment td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+}
+
+#environment tr:nth-child(odd) {
+	background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed, .passed .col-result {
+	color: green;
+}
+span.skipped, span.xfailed, span.rerun, .skipped .col-result, .xfailed .col-result, .rerun .col-result {
+	color: orange;
+}
+span.error, span.failed, span.xpassed, .error .col-result, .failed .col-result, .xpassed .col-result  {
+	color: red;
+}
+
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+
+#results-table {
+	border: 1px solid #e6e6e6;
+	color: #999;
+	font-size: 12px;
+	width: 100%
+}
+
+#results-table th, #results-table td {
+	padding: 5px;
+	border: 1px solid #E6E6E6;
+	text-align: left
+}
+#results-table th {
+	font-weight: bold
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+
+.log:only-child {
+	height: inherit
+}
+.log {
+	background-color: #e6e6e6;
+	border: 1px solid #e6e6e6;
+	color: black;
+	display: block;
+	font-family: "Courier New", Courier, monospace;
+	height: 230px;
+	overflow-y: scroll;
+	padding: 5px;
+	white-space: pre-wrap
+}
+div.image {
+	border: 1px solid #e6e6e6;
+	float: right;
+	height: 240px;
+	margin-left: 5px;
+	overflow: hidden;
+	width: 320px
+}
+div.image img {
+	width: 320px
+}
+.collapsed {
+	display: none;
+}
+.expander::after {
+	content: " (show details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+.collapser::after {
+	content: " (hide details)";
+	color: #BBB;
+	font-style: italic;
+	cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+	cursor: pointer;
+}
+
+.sort-icon {
+	font-size: 0px;
+	float: left;
+	margin-right: 5px;
+	margin-top: 5px;
+	/*triangle*/
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+}
+
+.inactive .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #E6E6E6;
+}
+
+.asc.active .sort-icon {
+	/*finish triangle*/
+	border-bottom: 8px solid #999;
+}
+
+.desc.active .sort-icon {
+	/*finish triangle*/
+	border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (elem.innerHTML === 'Passed') {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    toggle_sort_states(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+    var multiplier = reversed ? -1 : 1;
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+        return multiplier * (key_a >= key_b ? 1 : -1);
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <p>Report generated on 06-Nov-2017 at 19:47:41 by<a href="https://pypi.python.org/pypi/pytest-html"> pytest-html</a> v1.16.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Base URL</td>
+        <td><a href="https://addons-dev.allizom.org" target="_blank">https://addons-dev.allizom.org</a></td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{&apos;py&apos;: &apos;1.4.34&apos;, &apos;pluggy&apos;: &apos;0.4.0&apos;, &apos;pytest&apos;: &apos;3.2.3&apos;}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Darwin-14.5.0-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{&apos;forked&apos;: &apos;0.2&apos;, &apos;html&apos;: &apos;1.16.0&apos;, &apos;mozlog&apos;: &apos;3.5&apos;, &apos;selenium&apos;: &apos;1.11.1&apos;, &apos;xdist&apos;: &apos;1.20.1&apos;, &apos;variables&apos;: &apos;1.7.0&apos;, &apos;rerunfailures&apos;: &apos;3.1&apos;, &apos;metadata&apos;: &apos;1.5.0&apos;, &apos;base-url&apos;: &apos;1.4.1&apos;}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>2.7.10</td></tr></table>
+    <h2>Summary</h2>
+    <p>6 tests ran in 7.67 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">4 passed</span>, <input checked="true" class="filter" data-test-result="skipped" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">1 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">141 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">1 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="rerun">2 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_collections.py::TestCollections::()::test_create_and_delete_collection::setup</td>
+          <td class="col-duration">2.89</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_create_and_delete_collection'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_clicking_on_complete_theme_name_loads_its_detail_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_on_complete_theme_name_loads_its_detail_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_sorted_by_most_users_is_default::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_sorted_by_most_users_is_default'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_tags_are_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_tags_are_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_open_close_functionality_for_image_viewer::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_open_close_functionality_for_image_viewer'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_image_viewer_navigation::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_image_viewer_navigation'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_review_usernames_are_clickable::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_review_usernames_are_clickable'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_clicking_info_link_slides_down_page_to_version_info::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_info_link_slides_down_page_to_version_info'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_add_a_review_button_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_add_a_review_button_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_the_developers_comments_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_developers_comments_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_the_development_channel_expands::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_the_development_channel_expands'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_click_on_other_collections::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_click_on_other_collections'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_the_development_channel_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_development_channel_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_collections.py::TestCollections::()::test_featured_tab_is_highlighted_by_default::setup</td>
+          <td class="col-duration">3.06</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_featured_tab_is_highlighted_by_default'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_license_link_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_license_link_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_loads_landing_page_correctly::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_loads_landing_page_correctly'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_clicking_user_reviews_slides_down_page_to_reviews_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_user_reviews_slides_down_page_to_reviews_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_most_popular_link_is_default::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_most_popular_link_is_default'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_install_button_is_clickable::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_install_button_is_clickable'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_reviews_are_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_reviews_are_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_what_is_this_in_the_version_information::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_what_is_this_in_the_version_information'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_firebug_authors_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_firebug_authors_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_firebug_images_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_firebug_images_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_firebug_summary_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_firebug_summary_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_firebug_page_title_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_firebug_page_title_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_description_text_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_description_text_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_firebug_version_number_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_firebug_version_number_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_icon_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_icon_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_addon_number_of_total_downloads_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_addon_number_of_total_downloads_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_support_url_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_support_url_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_learn_more_link_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_learn_more_link_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_rating_in_api_equals_rating_in_details_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_rating_in_api_equals_rating_in_details_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_firebug_devs_comments_is_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_firebug_devs_comments_is_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_compatible_applications_equal::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_compatible_applications_equal'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_home_page_in_api_equals_home_page_in_details_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_home_page_in_api_equals_home_page_in_details_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_reviews_in_api_equals_reviews_in_details_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_reviews_in_api_equals_reviews_in_details_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_pagination::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_pagination'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page_against_xml.py::TestDetailsAgainstXML::()::test_that_daily_users_in_api_equals_daily_users_in_details_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_daily_users_in_api_equals_daily_users_in_details_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_previous_button_is_disabled_on_the_first_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_previous_button_is_disabled_on_the_first_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_collections.py::TestCollections::()::test_user_my_collections_page::setup</td>
+          <td class="col-duration">3.27</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_user_my_collections_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_next_button_is_disabled_on_the_last_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_next_button_is_disabled_on_the_last_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_web_extension_submission::setup</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_web_extension_submission'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/>---------------------------- Captured stdout setup -----------------------------<br/>Path, /private/var/folders/lt/hvwkp_r12sb6r8bhr6hnrhsh0000gp/T/pytest-of-liyiyu1/pytest-0/popen-gw0/test_web_extension_submission0
+Seed, TBQIN0
+Name generated, axlTBQIN0
+ID generated, axlTBQIN0@mozilla.org
+Creating manifest...
+Manifest path: /private/var/folders/lt/hvwkp_r12sb6r8bhr6hnrhsh0000gp/T/pytest-of-liyiyu1/pytest-0/popen-gw0/test_web_extension_submission0/webext/manifest.json
+Manifest created
+Creating JS...
+JS path: /private/var/folders/lt/hvwkp_r12sb6r8bhr6hnrhsh0000gp/T/pytest-of-liyiyu1/pytest-0/popen-gw0/test_web_extension_submission0/webext/genext.js
+JS created
+Packaging extension...
+/private/var/folders/lt/hvwkp_r12sb6r8bhr6hnrhsh0000gp/T/pytest-of-liyiyu1/pytest-0/popen-gw0/test_web_extension_submission0/webext
+Name: axlTBQIN0
+  adding: genext.js (deflated 28%)
+  adding: manifest.json (deflated 34%)
+Extension packaged in .xpi at /private/var/folders/lt/hvwkp_r12sb6r8bhr6hnrhsh0000gp/T/pytest-of-liyiyu1/pytest-0/popen-gw0/test_web_extension_submission0/webext/axlTBQIN0.xpi
+Cleaning up...
+Success! Extension .xpi generated at: /private/var/folders/lt/hvwkp_r12sb6r8bhr6hnrhsh0000gp/T/pytest-of-liyiyu1/pytest-0/popen-gw0/test_web_extension_submission0/axlTBQIN0.xpi
+</div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_page_has_correct_title::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_page_has_correct_title'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_checks_if_the_extensions_are_sorted_by_top_rated::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_if_the_extensions_are_sorted_by_top_rated'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_register_login_link_is_present_in_addon_details_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_register_login_link_is_present_in_addon_details_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_featured_tab_is_highlighted_by_default::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_featured_tab_is_highlighted_by_default'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_checks_if_the_extensions_are_sorted_by_most_user::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_if_the_extensions_are_sorted_by_most_user'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_part_of_collections_are_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_part_of_collections_are_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_checks_if_the_extensions_are_sorted_by_recently_updated::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_if_the_extensions_are_sorted_by_recently_updated'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_checks_if_the_extensions_are_sorted_by_newest::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_if_the_extensions_are_sorted_by_newest'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_checks_if_the_subscribe_link_exists::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_if_the_subscribe_link_exists'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_extensions_are_sorted_by_up_and_coming::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_extensions_are_sorted_by_up_and_coming'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_checks_the_promo_box_exists::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_the_promo_box_exists'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_checks_featured_extensions_header::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_featured_extensions_header'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_extensions.py::TestExtensions::()::test_that_extensions_page_contains_addons_and_the_pagination_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_extensions_page_contains_addons_and_the_pagination_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_on_addon_name_loads_details_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_on_addon_name_loads_details_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_checks_the_most_popular_section_exists::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_the_most_popular_section_exists'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_see_all_themes_link_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_see_all_themes_link_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_featured_themes_exist_on_the_home::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_featured_themes_exist_on_the_home'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_featured_collections_exist_on_the_home::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_featured_collections_exist_on_the_home'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_extensions_link_loads_extensions_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_extensions_link_loads_extensions_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_see_all_collections_link_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_see_all_collections_link_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_featured_extensions_exist_on_the_home::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_featured_extensions_exist_on_the_home'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_most_popular_section_is_ordered_by_users::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_most_popular_section_is_ordered_by_users'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_items_menu_fly_out_while_hovering::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_items_menu_fly_out_while_hovering'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_top_rated_shows_addons_sorted_by_rating::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_top_rated_shows_addons_sorted_by_rating'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_featured_shows_addons_sorted_by_featured::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_featured_shows_addons_sorted_by_featured'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_the_name_of_each_site_navigation_menu_in_the_header::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_name_of_each_site_navigation_menu_in_the_header'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_most_popular_shows_addons_sorted_by_users::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_most_popular_shows_addons_sorted_by_users'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_header_site_navigation_menus_are_correct::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_header_site_navigation_menus_are_correct'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_top_three_items_in_each_site_navigation_menu_are_featured::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_top_three_items_in_each_site_navigation_menu_are_featured'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_up_and_coming_extensions::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_up_and_coming_extensions'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_checks_explore_side_navigation::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_explore_side_navigation'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_checks_all_categories_side_navigation::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_all_categories_side_navigation'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_addons_author_link::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_addons_author_link'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_clicking_see_all_extensions_link_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_see_all_extensions_link_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_homepage.py::TestHome::()::test_that_checks_other_applications_menu::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_other_applications_menu'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_installs.py::TestInstalls::()::test_could_install_theme::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_could_install_theme'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_installs.py::TestInstalls::()::test_could_install_jetpack::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_could_install_jetpack'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_other_applications_thunderbird::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_other_applications_thunderbird'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_that_checks_amo_logo_text_layout_and_title::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_checks_amo_logo_text_layout_and_title'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_that_clicking_the_amo_logo_loads_home_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_the_amo_logo_loads_home_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_that_other_applications_link_has_tooltip::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_other_applications_link_has_tooltip'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_the_applications_listed_in_other_applications[Thunderbird]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_applications_listed_in_other_applications[Thunderbird]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_the_applications_listed_in_other_applications[Android]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_applications_listed_in_other_applications[Android]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_the_applications_listed_in_other_applications[SeaMonkey]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_applications_listed_in_other_applications[SeaMonkey]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_the_search_field_placeholder_and_search_button::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_search_field_placeholder_and_search_button'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_layout.py::TestAmoLayout::()::test_the_search_box_exist::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_search_box_exist'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_paypal.py::TestPaypal::()::test_that_user_can_contribute_to_an_addon::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_user_can_contribute_to_an_addon'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_paypal.py::TestPaypal::()::test_that_make_contribution_button_is_clickable_and_loads_paypal_frame_while_user_is_logged_out::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_make_contribution_button_is_clickable_and_loads_paypal_frame_while_user_is_logged_out'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_paypal.py::TestPaypal::()::test_that_make_contribution_button_is_clickable_and_loads_paypal_frame_while_user_is_logged_in::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_make_contribution_button_is_clickable_and_loads_paypal_frame_while_user_is_logged_in'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_paypal.py::TestPaypal::()::test_that_user_can_make_a_contribution_without_logging_into_amo::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_user_can_make_a_contribution_without_logging_into_amo'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_reviews.py::TestReviews::()::test_that_all_reviews_hyperlink_works::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_all_reviews_hyperlink_works'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_various_search_terms_return_results[\u0421\u043b\u043e\u0432\u0430\u0440\u0438 \u042f\u043d\u0434\u0435\u043a\u0441]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_various_search_terms_retur...043e\\u0432\\u0430\\u0440\\u0438 \\u042f\\u043d\\u0434\\u0435\\u043a\\u0441]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_reviews.py::TestReviews::()::test_that_new_review_is_saved::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_new_review_is_saved'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_search_all_add_ons_results_have_pagination_that_moves_through_results::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_search_all_add_ons_results_have_pagination_that_moves_through_results'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_various_search_terms_return_results[fox]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_various_search_terms_return_results[fox]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_various_search_terms_return_results[]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_various_search_terms_return_results[]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_various_search_terms_return_results[1]::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_various_search_terms_return_results[1]'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_searching_for_firebug_returns_firebug_as_first_result::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_searching_for_firebug_returns_firebug_as_first_result'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_page_with_search_results_has_correct_title::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_page_with_search_results_has_correct_title'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_sorting_by_downloads::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_sorting_by_downloads'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_sorting_by_most_recently_updated::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_sorting_by_most_recently_updated'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_sorting_by_newest::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_sorting_by_newest'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_sorting_by_number_of_most_users::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_sorting_by_number_of_most_users'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_searching_for_a_tag_returns_results::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_searching_for_a_tag_returns_results'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_that_search_results_return_20_results_per_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_search_results_return_20_results_per_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_searching_for_extensions::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_searching_for_extensions'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_searching_for_themes::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_searching_for_themes'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_searching_for_collections::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_searching_for_collections'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_statistics.py::test_that_verifies_the_url_of_the_statistics_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_verifies_the_url_of_the_statistics_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_themes.py::TestThemes::()::test_page_title_for_themes_landing_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_page_title_for_themes_landing_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_search.py::TestSearch::()::test_searching_for_complete_themes::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_searching_for_complete_themes'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_themes.py::TestThemes::()::test_the_featured_themes_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_featured_themes_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_themes.py::TestThemes::()::test_the_recently_added_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_recently_added_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_users_account.py::TestAccounts::()::test_user_can_login_and_logout::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_user_can_login_and_logout'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_themes.py::TestThemes::()::test_the_most_popular_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_most_popular_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_themes.py::TestThemes::()::test_the_top_rated_section::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_top_rated_section'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_can_be_sorted_by_created_date::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw4] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_can_be_sorted_by_created_date'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_can_be_sorted_by_popularity::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw5] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_can_be_sorted_by_popularity'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_collections.py::TestCollections::()::test_user_my_favorites_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_user_my_favorites_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_last_complete_themes_page_is_not_empty::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw4] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_last_complete_themes_page_is_not_empty'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_the_displayed_message_for_incompatible_complete_themes::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw5] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_the_displayed_message_for_incompatible_complete_themes'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_clicking_on_a_subcategory_loads_expected_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_clicking_on_a_subcategory_loads_expected_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_about_this_addon_is_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw4] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_about_this_addon_is_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_version_information_is_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw5] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_version_information_is_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_dropdown_menu_is_present_after_click_on_other_apps::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_dropdown_menu_is_present_after_click_on_other_apps'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_can_be_sorted_by_name::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_can_be_sorted_by_name'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_can_be_sorted_by_updated_date::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw3] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_can_be_sorted_by_updated_date'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_categories_are_not_extensions_categories::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw3] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_categories_are_not_extensions_categories'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_complete_themes.py::TestCompleteThemes::()::test_that_complete_themes_categories_are_listed_on_left_hand_side::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_complete_themes_categories_are_listed_on_left_hand_side'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_summary_is_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw3] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_summary_is_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_addon_name_is_displayed::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_addon_name_is_displayed'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_author_addons_when_there_is_only_one_author::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw4] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_author_addons_when_there_is_only_one_author'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_users_account.py::TestAccounts::()::test_user_can_access_the_edit_profile_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_user_can_access_the_edit_profile_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_users_account.py::TestAccounts::()::test_user_can_update_profile_information_in_account_settings_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_user_can_update_profile_information_in_account_settings_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>/Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_website_link::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_website_link'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_navigating_to_author_addons::setup</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw5] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_navigating_to_author_addons'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_author_addons_when_there_are_multiple_authors::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw3] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_author_addons_when_there_are_multiple_authors'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_users_account.py::TestAccounts::()::test_user_can_access_the_view_profile_page::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_user_can_access_the_view_profile_page'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_that_whats_this_link_for_source_license_links_to_an_answer_in_faq::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_whats_this_link_for_source_license_links_to_an_answer_in_faq'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/desktop/test_api_only.py::TestAPIOnlyTests::()::test_that_firebug_has_install_link</td>
+          <td class="col-duration">0.71</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw5] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>self = &lt;tests.desktop.test_api_only.TestAPIOnlyTests instance at 0x106e48f38&gt;<br/>base_url = 'https://addons-dev.allizom.org'<br/><br/>    @pytest.mark.nondestructive<br/>    def test_that_firebug_has_install_link(self, base_url):<br/>        response = AddonsAPI(base_url, 'Firebug')<br/>&gt;       assert 'fx.xpi?src=api' in response.get_install_link()<br/><span class="error">E       AssertionError: assert 'fx.xpi?src=api' in 'https://addons-dev.allizom.org/firefox/downloads/file/253452/firebug-4-fx-windows.xpi?src=api'</span><br/><span class="error">E        +  where 'https://addons-dev.allizom.org/firefox/downloads/file/253452/firebug-4-fx-windows.xpi?src=api' = &lt;bound method AddonsAPI.get_install_link of &lt;pages.desktop.addons_api.AddonsAPI instance at 0x107060d88&gt;&gt;()</span><br/><span class="error">E        +    where &lt;bound method AddonsAPI.get_install_link of &lt;pages.desktop.addons_api.AddonsAPI instance at 0x107060d88&gt;&gt; = &lt;pages.desktop.addons_api.AddonsAPI instance at 0x107060d88&gt;.get_install_link</span><br/><br/>tests/desktop/test_api_only.py:40: AssertionError<br/></div></td></tr></tbody>
+      <tbody class="rerun results-table-row">
+        <tr>
+          <td class="col-result">Rerun</td>
+          <td class="col-name">tests/desktop/test_paypal.py::TestPaypal::()::test_that_user_can_contribute_to_an_addon::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_user_can_contribute_to_an_addon'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="rerun results-table-row">
+        <tr>
+          <td class="col-result">Rerun</td>
+          <td class="col-name">tests/desktop/test_paypal.py::TestPaypal::()::test_that_user_can_make_a_contribution_without_logging_into_amo::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw6] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_that_user_can_make_a_contribution_without_logging_into_amo'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="xfailed results-table-row">
+        <tr>
+          <td class="col-result">XFailed</td>
+          <td class="col-name">tests/desktop/test_details_page.py::TestDetails::()::test_view_the_source_in_the_version_information::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/><br/>request = &lt;SubRequest 'driver_class' for &lt;Function 'test_view_the_source_in_the_version_information'&gt;&gt;<br/><br/>    @pytest.fixture<br/>    def driver_class(request):<br/>        driver = request.config.getoption('driver')<br/>        if driver is None:<br/>&gt;           raise pytest.UsageError('--driver must be specified')<br/><span class="error">E           UsageError: --driver must be specified</span><br/><br/>.tox/py27/lib/python2.7/site-packages/pytest_selenium/pytest_selenium.py:96: UsageError<br/></div></td></tr></tbody>
+      <tbody class="skipped results-table-row">
+        <tr>
+          <td class="col-result">Skipped</td>
+          <td class="col-name">tests/desktop/test_statistics.py::test_that_checks_content_in_json_endpoints_from_statistics_urls::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw7] darwin -- Python 2.7.10 /Users/liyiyu1/Documents/cs527_research/Addon-Tests/.tox/py27/bin/python2.7<br/>('tests/desktop/test_statistics.py', 20, u'Skipped: Only run against prod, data on dev &amp; stage is insufficient')<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/desktop/test_api_only.py::TestAPIOnlyTests::()::test_that_firebug_status_id_is_4_and_approved</td>
+          <td class="col-duration">1.19</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/desktop/test_api_only.py::TestAPIOnlyTests::()::test_that_firebug_is_listed_first_in_addons_search_for_firebug</td>
+          <td class="col-duration">1.20</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/desktop/test_api_only.py::TestAPIOnlyTests::()::test_that_firebug_addon_type_name_is_extension</td>
+          <td class="col-duration">2.54</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/desktop/test_api_only.py::TestAPIOnlyTests::()::test_that_firebug_addon_type_id_is_1</td>
+          <td class="col-duration">1.79</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody></table></body></html>
